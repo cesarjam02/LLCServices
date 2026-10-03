@@ -1,0 +1,150 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  ACCOUNTANT
+  EMPLOYEE
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  TRANSFER
+  CARD
+  OTHER
+}
+
+enum TransactionStatus {
+  COMPLETED
+  VOIDED
+  PENDING
+}
+
+model User {
+  id           String        @id @default(cuid())
+  username     String        @unique
+  name         String
+  passwordHash String
+  role         Role          @default(ADMIN)
+  active       Boolean       @default(true)
+  transactions Transaction[]
+  moneyTransfers MoneyTransfer[]
+  auditLogs    AuditLog[]
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+}
+
+model Client {
+  id             String        @id @default(cuid())
+  name           String
+  firstName      String
+  lastName       String
+  phone          String        @unique
+  address        String
+  identification String?
+  documentPath   String?
+  documentName   String?
+  active         Boolean       @default(true)
+  transactions   Transaction[]
+  moneyTransfers MoneyTransfer[]
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  @@index([name])
+}
+
+model Category {
+  id           String            @id @default(cuid())
+  name         String            @unique
+  type         TransactionType?
+  active       Boolean           @default(true)
+  transactions Transaction[]
+  createdAt    DateTime          @default(now())
+}
+
+model Transaction {
+  id               String            @id @default(cuid())
+  date             DateTime
+  type             TransactionType
+  paymentMethod    PaymentMethod
+  status           TransactionStatus @default(COMPLETED)
+  amount           Decimal           @db.Decimal(12, 2)
+  accountingExcluded Boolean         @default(false)
+  currency         String            @default("USD")
+  provider         String?
+  referenceNumber  String?
+  description      String?
+  beneficiary      String?
+  beneficiaryPhone String?
+  destinationStreet String?
+  destinationCity  String?
+  receiptPath      String?
+  receiptName      String?
+  clientId         String?
+  categoryId       String
+  createdById      String
+  client           Client?           @relation(fields: [clientId], references: [id], onDelete: SetNull)
+  category         Category          @relation(fields: [categoryId], references: [id])
+  createdBy        User              @relation(fields: [createdById], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([date])
+  @@index([provider])
+  @@index([clientId])
+  @@index([type, date])
+}
+
+model MoneyTransfer {
+  id               String            @id @default(cuid())
+  date             DateTime
+  amount           Decimal           @db.Decimal(14, 2)
+  commission       Decimal           @default(0) @db.Decimal(12, 2)
+  currency         String            @default("USD")
+  company          String
+  bank             String?
+  destinationCountry String?
+  beneficiary      String?
+  referenceNumber  String?
+  status           TransactionStatus @default(COMPLETED)
+  receiptPath      String?
+  receiptName      String?
+  clientId         String
+  createdById      String
+  client           Client            @relation(fields: [clientId], references: [id])
+  createdBy        User              @relation(fields: [createdById], references: [id])
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  @@index([date])
+  @@index([clientId, date])
+  @@index([company, date])
+  @@index([bank])
+  @@index([currency])
+}
+
+model AuditLog {
+  id        String   @id @default(cuid())
+  action    String
+  entity    String
+  entityId  String?
+  metadata  Json?
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([entity, entityId])
+}
