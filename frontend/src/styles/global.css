@@ -1529,6 +1529,22 @@ img {
   color: #a05d0e;
   background: #fff3df;
 }
+.id-expiration-alerts {
+  margin-bottom: 1rem;
+  border-left: 4px solid #a05d0e;
+}
+.id-expiration-alerts ul {
+  padding-left: 1.25rem;
+  max-height: 18rem;
+  overflow-y: auto;
+}
+.id-expiration-alerts li {
+  margin: 0.6rem 0;
+}
+.id-expiration-alerts .status-chip {
+  margin-left: 0.6rem;
+  white-space: normal;
+}
 .inline-form-card {
   margin-bottom: 1rem;
 }

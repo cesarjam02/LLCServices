@@ -32,7 +32,34 @@ const clientSchema = z.object({
   phone: z.string().trim().min(7, 'El teléfono es obligatorio'),
   address: z.string().trim().min(5, 'La dirección es obligatoria'),
   identification: z.string().trim().optional(),
+  idExpirationDate: z.preprocess(
+    (value) => (value === '' ? null : value),
+    z.iso
+      .date()
+      .transform((value) => new Date(`${value}T00:00:00.000Z`))
+      .nullable()
+      .optional(),
+  ),
   active: z.coerce.boolean().optional(),
+});
+
+clientsRouter.get('/id-expirations', async (_request, response) => {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'America/New_York',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  }).formatToParts(new Date());
+  const part = (name: string) => parts.find((p) => p.type === name)!.value;
+  const limit = new Date(`${part('year')}-${part('month')}-${part('day')}T00:00:00.000Z`);
+  limit.setUTCDate(limit.getUTCDate() + 7);
+  const clients = await prisma.client.findMany({
+    where: { active: true, idExpirationDate: { lte: limit } },
+    select: { id: true, firstName: true, lastName: true, idExpirationDate: true },
+    orderBy: { idExpirationDate: 'asc' },
+  });
+  response.setHeader('Cache-Control', 'private, no-store');
+  response.json({ clients });
 });
 
 clientsRouter.get('/', async (request, response) => {
@@ -101,6 +128,15 @@ clientsRouter.get('/:id/document', async (request, response) => {
   });
   if (!client?.documentPath) throw new AppError('Este cliente no tiene documento adjunto', 404);
   await downloadFile(response, client.documentPath, client.documentName ?? 'documento-cliente');
+});
+
+clientsRouter.get('/:id', async (request, response) => {
+  const client = await prisma.client.findUnique({
+    where: { id: String(request.params.id) },
+    include: { _count: { select: { transactions: true } } },
+  });
+  if (!client) throw new AppError('Cliente no encontrado', 404);
+  response.json({ client });
 });
 
 clientsRouter.patch('/:id', upload.single('document'), async (request, response) => {

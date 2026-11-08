@@ -18,6 +18,7 @@ export interface Client {
   phone: string;
   address: string;
   identification?: string;
+  idExpirationDate?: string | null;
   documentPath?: string;
   documentName?: string;
   active: boolean;
@@ -101,6 +102,11 @@ export const api = {
     `${API_URL}/admin/dashboard/report.xlsx?year=${year}&month=${month}`,
   clients: (search = '') =>
     request<{ clients: Client[] }>(`/admin/clients?search=${encodeURIComponent(search)}`),
+  client: (id: string) => request<{ client: Client }>(`/admin/clients/${encodeURIComponent(id)}`),
+  idExpirations: () =>
+    request<{ clients: Pick<Client, 'id' | 'firstName' | 'lastName' | 'idExpirationDate'>[] }>(
+      '/admin/clients/id-expirations',
+    ),
   createClient: (data: FormData) =>
     request<{ client: Client }>('/admin/clients', { method: 'POST', body: data }),
   updateClient: (id: string, data: FormData) =>

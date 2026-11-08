@@ -247,3 +247,9 @@ node backend/scripts/verify-file-storage.mjs
 ```
 
 Usa únicamente datos ficticios y rechaza bases remotas/producción. Verifica subidas de 6 MiB, descargas tras reiniciar otro proceso Node, autenticación, reemplazo y reversión si falla el registro. Elimina solo los registros creados para la prueba.
+
+## Expiración de identificaciones
+
+El formulario de creación y edición de clientes incluye `Fecha de expiración del ID` como calendario. El campo es opcional para clientes anteriores y documentos sin vencimiento. Se guarda como fecha MySQL (`DATE`), sin hora. No se modifica ninguna identificación ni archivo existente al aplicar esta migración.
+
+El dashboard y la sección Clientes muestran los clientes activos cuyo ID ya venció o vence en siete días o menos. Se usa el día de calendario de `America/New_York`; los avisos se consultan al abrir la página, recuperar el foco y cada minuto mientras permanece abierta. No dependen del filtro financiero mensual ni de la búsqueda de clientes. El perfil y la tabla muestran la fecha y su estado. Al renovar el documento, actualiza también su fecha para retirar el aviso. Los avisos aparecen dentro del panel administrativo.

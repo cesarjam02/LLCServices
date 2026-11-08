@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { api, type DashboardSummary } from '@/services/api';
+import { IDExpirationAlerts } from '@/components/admin/IDExpirationAlerts';
 
 const money = new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD' });
 const months = [
@@ -52,6 +53,7 @@ export function AdminDashboardPage() {
         </div>
       </header>
       {error && <p className="admin-alert">{error}</p>}
+      <IDExpirationAlerts />
       <section className="metric-grid">
         <article>
           <span className="metric-icon income">↗</span>

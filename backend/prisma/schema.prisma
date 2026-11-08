@@ -54,6 +54,7 @@ model Client {
   phone          String          @unique
   address        String          @db.Text
   identification String?
+  idExpirationDate DateTime? @db.Date
   documentPath   String?         @db.Text
   documentName   String?         @db.Text
   active         Boolean         @default(true)
@@ -63,6 +64,7 @@ model Client {
   updatedAt      DateTime        @updatedAt
 
   @@index([name])
+  @@index([active, idExpirationDate])
 }
 
 model Category {

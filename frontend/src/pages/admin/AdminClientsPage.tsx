@@ -1,7 +1,11 @@
 import { useEffect, useState, type FormEvent } from 'react';
 import { api, type Client } from '@/services/api';
+import { useSearchParams } from 'react-router-dom';
+import { IDExpirationAlerts } from '@/components/admin/IDExpirationAlerts';
+import { idExpiration, expirationDateLabel } from '@/services/idExpiration';
 
 export function AdminClientsPage() {
+  const [params] = useSearchParams();
   const [clients, setClients] = useState<Client[]>([]);
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [search, setSearch] = useState('');
@@ -20,6 +24,27 @@ export function AdminClientsPage() {
   useEffect(() => {
     load();
   }, []);
+
+  useEffect(() => {
+    const id = params.get('client');
+    if (!id) return;
+    let active = true;
+    api
+      .client(id)
+      .then(({ client }) => {
+        if (active) {
+          setSelectedClient(client);
+          setEditingProfile(false);
+        }
+      })
+      .catch((reason) => {
+        if (active)
+          setError(reason instanceof Error ? reason.message : 'No se pudo abrir el perfil');
+      });
+    return () => {
+      active = false;
+    };
+  }, [params]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -75,6 +100,8 @@ export function AdminClientsPage() {
         </button>
       </header>
 
+      <IDExpirationAlerts refreshKey={clients} />
+
       {showForm && (
         <section className="admin-card inline-form-card">
           <div className="card-heading">
@@ -106,6 +133,11 @@ export function AdminClientsPage() {
             <label>
               Identificación <small>Opcional</small>
               <input name="identification" />
+            </label>
+            <label>
+              Fecha de expiración del ID{' '}
+              <small>Opcional si el documento no tiene vencimiento</small>
+              <input name="idExpirationDate" type="date" />
             </label>
             <label className="file-field">
               Identificación o CV <small>PDF, JPG, PNG, DOC o DOCX · máx. 10 MB</small>
@@ -196,6 +228,14 @@ export function AdminClientsPage() {
                 Identificación <small>Opcional</small>
                 <input name="identification" defaultValue={selectedClient.identification ?? ''} />
               </label>
+              <label>
+                Fecha de expiración del ID
+                <input
+                  name="idExpirationDate"
+                  type="date"
+                  defaultValue={selectedClient.idExpirationDate?.slice(0, 10) ?? ''}
+                />
+              </label>
               <label className="file-field">
                 Adjuntar o reemplazar identificación/CV
                 <small>PDF, JPG, PNG, DOC o DOCX · máx. 10 MB</small>
@@ -218,6 +258,17 @@ export function AdminClientsPage() {
               <div>
                 <small>Identificación</small>
                 <strong>{selectedClient.identification || 'No registrada'}</strong>
+              </div>
+              <div>
+                <small>Fecha de expiración del ID</small>
+                <strong>{expirationDateLabel(selectedClient.idExpirationDate)}</strong>
+                {selectedClient.idExpirationDate && (
+                  <span
+                    className={`status-chip ${idExpiration(selectedClient.idExpirationDate).className}`}
+                  >
+                    {idExpiration(selectedClient.idExpirationDate).label}
+                  </span>
+                )}
               </div>
               <div>
                 <small>Documento</small>
@@ -263,6 +314,7 @@ export function AdminClientsPage() {
                 <th>Cliente</th>
                 <th>Teléfono</th>
                 <th>Identificación</th>
+                <th>Expiración del ID</th>
                 <th>Dirección</th>
                 <th>Documento</th>
                 <th>Movimientos</th>
@@ -279,6 +331,16 @@ export function AdminClientsPage() {
                   </td>
                   <td>{client.phone}</td>
                   <td>{client.identification || '—'}</td>
+                  <td>
+                    <div>{expirationDateLabel(client.idExpirationDate)}</div>
+                    {client.idExpirationDate && (
+                      <span
+                        className={`status-chip ${idExpiration(client.idExpirationDate).className}`}
+                      >
+                        {idExpiration(client.idExpirationDate).label}
+                      </span>
+                    )}
+                  </td>
                   <td>{client.address}</td>
                   <td>
                     {client.documentPath ? (
@@ -297,7 +359,7 @@ export function AdminClientsPage() {
               ))}
               {!clients.length && (
                 <tr>
-                  <td colSpan={7} className="empty-state">
+                  <td colSpan={8} className="empty-state">
                     No se encontraron clientes.
                   </td>
                 </tr>
