@@ -6,6 +6,16 @@ import type { ApiResponse } from '../types/http.js';
 export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
   const knownError = error instanceof AppError;
   const statusCode = knownError ? error.statusCode : 500;
+  if (!knownError) {
+    // Log identifiers only; database error messages may contain connection secrets.
+    console.error('Error interno de API', {
+      method: _request.method,
+      path: _request.path,
+      name: error instanceof Error ? error.name : 'UnknownError',
+      code: typeof error?.code === 'string' ? error.code : undefined,
+      errorCode: typeof error?.errorCode === 'string' ? error.errorCode : undefined,
+    });
+  }
   const payload: ApiResponse<never> = {
     success: false,
     error: {

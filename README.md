@@ -221,6 +221,6 @@ Genera Prisma antes de compilar (`npm run db:generate -w backend`), aplica `npm 
 - `VITE_API_URL=https://mymultiservicesllc.com/api/v1`
 - Para Node.js dentro de Hostinger, el host MySQL es `127.0.0.1:3306`.
 
-El arranque de producción aplica `prisma migrate deploy` y el seed en modo `--initial-only`: crea usuarios y categorías ausentes, sin actualizar los existentes. Si falta la conexión, el secreto JWT o la contraseña inicial, el arranque falla con un mensaje de configuración. No uses `backend/dist/server.js` como entrada en Hostinger: omitiría la preparación inicial de la base. Mantén disponibles Prisma CLI y las carpetas `backend/prisma` y `frontend/dist` en el entorno de ejecución.
+El arranque de producción aplica `prisma migrate deploy` y el seed en modo `--initial-only`: crea usuarios y categorías ausentes, sin actualizar los existentes. Si falta la conexión, el secreto JWT o la contraseña inicial, el arranque falla con un mensaje de configuración. La entrada directa `backend/dist/server.js` también prepara la base de datos al iniciar en producción. Mantén disponibles Prisma CLI y las carpetas `backend/prisma` y `frontend/dist` en el entorno de ejecución.
 
 Guía de conexión del proveedor: https://www.hostinger.com/support/connecting-a-hostinger-mysql-database-to-a-node-js-application/
