@@ -2,8 +2,17 @@ import type { ErrorRequestHandler } from 'express';
 import { env } from '../config/env.js';
 import { AppError } from '../errors/AppError.js';
 import type { ApiResponse } from '../types/http.js';
+import { MulterError } from 'multer';
 
 export const errorHandler: ErrorRequestHandler = (error, _request, response, _next) => {
+  if (error instanceof MulterError) {
+    error = new AppError(
+      error.code === 'LIMIT_FILE_SIZE'
+        ? 'El archivo supera el tamaño permitido'
+        : 'Archivo o formulario no válido',
+      error.code === 'LIMIT_FILE_SIZE' ? 413 : 400,
+    );
+  }
   const knownError = error instanceof AppError;
   const statusCode = knownError ? error.statusCode : 500;
   if (!knownError) {

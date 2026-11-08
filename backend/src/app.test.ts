@@ -22,4 +22,15 @@ describe('API', () => {
     expect(response.status).toBe(401);
     expect(response.body).toMatchObject({ success: false });
   });
+
+  it('no permite descargar documentos ni comprobantes sin sesión', async () => {
+    for (const path of [
+      '/api/v1/admin/clients/example/document',
+      '/api/v1/admin/transactions/example/receipt',
+      '/api/v1/admin/money-transfers/example/receipt',
+    ]) {
+      const response = await request(app).get(path);
+      expect(response.status).toBe(401);
+    }
+  });
 });

@@ -1,25 +1,22 @@
-import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma.js';
+import { downloadFile, storeFile } from '../../config/fileStorage.js';
 import { AppError } from '../../errors/AppError.js';
 import { isTemporaryAdmin } from '../../config/temporaryAdmin.js';
 
 export const transactionsRouter = Router();
-const uploadDirectory = resolve(process.cwd(), 'uploads');
-mkdirSync(uploadDirectory, { recursive: true });
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: uploadDirectory,
-    filename: (_request, file, callback) =>
-      callback(null, `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 8 * 1024 * 1024 },
-  fileFilter: (_request, file, callback) =>
-    callback(null, ['image/jpeg', 'image/png', 'application/pdf'].includes(file.mimetype)),
+  fileFilter: (_request, file, callback) => {
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(file.mimetype)) {
+      callback(new AppError('El comprobante debe ser PDF, JPG o PNG', 400));
+      return;
+    }
+    callback(null, true);
+  },
 });
 
 const transactionSchema = z.object({
@@ -87,16 +84,22 @@ transactionsRouter.post('/', upload.single('receipt'), async (request, response)
   if (!parsed.success)
     throw new AppError('Revisa los datos del movimiento', 400, z.treeifyError(parsed.error));
   if (!request.file) throw new AppError('El comprobante es obligatorio', 400);
-  const transaction = await prisma.transaction.create({
-    data: {
-      ...parsed.data,
-      clientId: parsed.data.clientId,
-      receiptPath: request.file?.path,
-      receiptName: request.file?.originalname,
-      createdById: request.admin!.id,
+  const transaction = await prisma.$transaction(
+    async (tx) => {
+      const receiptPath = request.file ? await storeFile(tx, request.file) : undefined;
+      return tx.transaction.create({
+        data: {
+          ...parsed.data,
+          clientId: parsed.data.clientId,
+          receiptPath,
+          receiptName: request.file?.originalname,
+          createdById: request.admin!.id,
+        },
+        include: { client: true, category: true },
+      });
     },
-    include: { client: true, category: true },
-  });
+    { timeout: 30000 },
+  );
   await prisma.auditLog.create({
     data: {
       action: 'CREATE',
@@ -136,5 +139,5 @@ transactionsRouter.get('/:id/receipt', async (request, response) => {
     select: { receiptPath: true, receiptName: true },
   });
   if (!transaction?.receiptPath) throw new AppError('Este movimiento no tiene comprobante', 404);
-  response.download(transaction.receiptPath, transaction.receiptName ?? 'comprobante');
+  await downloadFile(response, transaction.receiptPath, transaction.receiptName ?? 'comprobante');
 });

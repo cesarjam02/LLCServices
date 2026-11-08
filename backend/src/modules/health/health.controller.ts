@@ -6,6 +6,7 @@ export const getHealth: RequestHandler = (_request, response) => {
     status: 'ok',
     message: 'API funcionando correctamente',
     environment: env.NODE_ENV,
+    fileStorage: 'mysql',
     timestamp: new Date().toISOString(),
   });
 };

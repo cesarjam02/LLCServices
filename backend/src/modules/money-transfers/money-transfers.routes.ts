@@ -1,22 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma.js';
+import { downloadFile, storeFile } from '../../config/fileStorage.js';
 import { AppError } from '../../errors/AppError.js';
 
 export const moneyTransfersRouter = Router();
-const receiptsDirectory = resolve(process.cwd(), 'uploads', 'money-transfers');
-mkdirSync(receiptsDirectory, { recursive: true });
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: receiptsDirectory,
-    filename: (_request, file, callback) =>
-      callback(null, `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_request, file, callback) => {
     const allowed = ['image/jpeg', 'image/png', 'application/pdf'];
@@ -91,19 +83,25 @@ moneyTransfersRouter.post('/', upload.single('receipt'), async (request, respons
   if (!parsed.success) {
     throw new AppError('Revisa los datos obligatorios del giro', 400, z.treeifyError(parsed.error));
   }
-  const transfer = await prisma.moneyTransfer.create({
-    data: {
-      ...parsed.data,
-      bank: parsed.data.bank || null,
-      destinationCountry: parsed.data.destinationCountry || null,
-      beneficiary: parsed.data.beneficiary || null,
-      referenceNumber: parsed.data.referenceNumber || null,
-      receiptPath: request.file?.path,
-      receiptName: request.file?.originalname,
-      createdById: request.admin!.id,
+  const transfer = await prisma.$transaction(
+    async (tx) => {
+      const receiptPath = request.file ? await storeFile(tx, request.file) : undefined;
+      return tx.moneyTransfer.create({
+        data: {
+          ...parsed.data,
+          bank: parsed.data.bank || null,
+          destinationCountry: parsed.data.destinationCountry || null,
+          beneficiary: parsed.data.beneficiary || null,
+          referenceNumber: parsed.data.referenceNumber || null,
+          receiptPath,
+          receiptName: request.file?.originalname,
+          createdById: request.admin!.id,
+        },
+        include: { client: true, createdBy: { select: { name: true } } },
+      });
     },
-    include: { client: true, createdBy: { select: { name: true } } },
-  });
+    { timeout: 30000 },
+  );
   await prisma.auditLog.create({
     data: {
       action: 'CREATE',
@@ -126,5 +124,5 @@ moneyTransfersRouter.get('/:id/receipt', async (request, response) => {
     select: { receiptPath: true, receiptName: true },
   });
   if (!transfer?.receiptPath) throw new AppError('Este giro no tiene recibo adjunto', 404);
-  response.download(transfer.receiptPath, transfer.receiptName ?? 'recibo-giro');
+  await downloadFile(response, transfer.receiptPath, transfer.receiptName ?? 'recibo-giro');
 });

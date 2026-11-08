@@ -148,3 +148,22 @@ model AuditLog {
   @@index([createdAt])
   @@index([entity, entityId])
 }
+
+model StoredFile {
+  id        String      @id @default(cuid())
+  name      String      @db.Text
+  mimeType  String
+  size      Int
+  sha256    String      @db.Char(64)
+  createdAt DateTime    @default(now())
+  chunks    FileChunk[]
+}
+
+model FileChunk {
+  fileId   String
+  position Int
+  data     Bytes      @db.MediumBlob
+  file     StoredFile @relation(fields: [fileId], references: [id], onDelete: Cascade)
+
+  @@id([fileId, position])
+}

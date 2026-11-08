@@ -1,23 +1,14 @@
-import { randomUUID } from 'node:crypto';
-import { mkdirSync } from 'node:fs';
-import { unlink } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import { Router } from 'express';
 import multer from 'multer';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma.js';
+import { downloadFile, storeFile, removeStoredFile } from '../../config/fileStorage.js';
 import { AppError } from '../../errors/AppError.js';
 
 export const clientsRouter = Router();
-const clientDocumentsDirectory = resolve(process.cwd(), 'uploads', 'clients');
-mkdirSync(clientDocumentsDirectory, { recursive: true });
 
 const upload = multer({
-  storage: multer.diskStorage({
-    destination: clientDocumentsDirectory,
-    filename: (_request, file, callback) =>
-      callback(null, `${randomUUID()}-${file.originalname.replace(/[^a-zA-Z0-9._-]/g, '_')}`),
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (_request, file, callback) => {
     const allowedTypes = [
@@ -75,16 +66,22 @@ clientsRouter.post('/', upload.single('document'), async (request, response) => 
     );
   }
 
-  const client = await prisma.client.create({
-    data: {
-      ...parsed.data,
-      name: `${parsed.data.firstName} ${parsed.data.lastName}`,
-      identification: parsed.data.identification || null,
-      documentPath: request.file?.path,
-      documentName: request.file?.originalname,
+  const client = await prisma.$transaction(
+    async (tx) => {
+      const documentPath = request.file ? await storeFile(tx, request.file) : undefined;
+      return tx.client.create({
+        data: {
+          ...parsed.data,
+          name: `${parsed.data.firstName} ${parsed.data.lastName}`,
+          identification: parsed.data.identification || null,
+          documentPath,
+          documentName: request.file?.originalname,
+        },
+        include: { _count: { select: { transactions: true } } },
+      });
     },
-    include: { _count: { select: { transactions: true } } },
-  });
+    { timeout: 30000 },
+  );
   await prisma.auditLog.create({
     data: {
       action: 'CREATE',
@@ -103,7 +100,7 @@ clientsRouter.get('/:id/document', async (request, response) => {
     select: { documentPath: true, documentName: true },
   });
   if (!client?.documentPath) throw new AppError('Este cliente no tiene documento adjunto', 404);
-  response.download(client.documentPath, client.documentName ?? 'documento-cliente');
+  await downloadFile(response, client.documentPath, client.documentName ?? 'documento-cliente');
 });
 
 clientsRouter.patch('/:id', upload.single('document'), async (request, response) => {
@@ -116,19 +113,27 @@ clientsRouter.patch('/:id', upload.single('document'), async (request, response)
   });
   const firstName = parsed.data.firstName ?? current.firstName;
   const lastName = parsed.data.lastName ?? current.lastName;
-  const client = await prisma.client.update({
-    where: { id: current.id },
-    data: {
-      ...parsed.data,
-      name: `${firstName} ${lastName}`,
-      identification:
-        parsed.data.identification === undefined ? undefined : parsed.data.identification || null,
-      ...(request.file
-        ? { documentPath: request.file.path, documentName: request.file.originalname }
-        : {}),
+  const client = await prisma.$transaction(
+    async (tx) => {
+      const documentPath = request.file ? await storeFile(tx, request.file) : undefined;
+      const updated = await tx.client.update({
+        where: { id: current.id },
+        data: {
+          ...parsed.data,
+          name: `${firstName} ${lastName}`,
+          identification:
+            parsed.data.identification === undefined
+              ? undefined
+              : parsed.data.identification || null,
+          ...(request.file ? { documentPath, documentName: request.file.originalname } : {}),
+        },
+        include: { _count: { select: { transactions: true } } },
+      });
+      if (request.file && current.documentPath) await removeStoredFile(tx, current.documentPath);
+      return updated;
     },
-    include: { _count: { select: { transactions: true } } },
-  });
+    { timeout: 30000 },
+  );
   await prisma.auditLog.create({
     data: {
       action: 'UPDATE',
@@ -138,8 +143,5 @@ clientsRouter.patch('/:id', upload.single('document'), async (request, response)
       metadata: { documentReplaced: Boolean(request.file) },
     },
   });
-  if (request.file && current.documentPath && current.documentPath !== request.file.path) {
-    await unlink(current.documentPath).catch(() => undefined);
-  }
   response.json({ client });
 });
