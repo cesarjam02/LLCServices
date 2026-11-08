@@ -50,11 +50,11 @@ clientsRouter.get('/', async (request, response) => {
     where: search
       ? {
           OR: [
-            { name: { contains: search, mode: 'insensitive' } },
-            { firstName: { contains: search, mode: 'insensitive' } },
-            { lastName: { contains: search, mode: 'insensitive' } },
+            { name: { contains: search } },
+            { firstName: { contains: search } },
+            { lastName: { contains: search } },
             { phone: { contains: search } },
-            { identification: { contains: search, mode: 'insensitive' } },
+            { identification: { contains: search } },
           ],
         }
       : undefined,

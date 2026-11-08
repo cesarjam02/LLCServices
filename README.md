@@ -6,7 +6,7 @@ Aplicación web full stack para el sitio público y la administración interna d
 
 - Frontend: React 19, TypeScript, Vite y React Router.
 - Backend: Node.js, Express 5 y TypeScript.
-- Base de datos: PostgreSQL con Prisma ORM.
+- Base de datos: MySQL/MariaDB con Prisma ORM.
 - Reportes: ExcelJS.
 - Pruebas y calidad: Vitest, ESLint y Prettier.
 - Organización: monorepo con npm workspaces.
@@ -15,7 +15,7 @@ Aplicación web full stack para el sitio público y la administración interna d
 
 - Node.js 22 o superior.
 - npm 10 o superior.
-- PostgreSQL 17 o 18.
+- MySQL 8 o MariaDB 10.4 o superior (incluido en XAMPP).
 - Git, si se va a clonar el proyecto.
 
 ## 1. Descargar e instalar
@@ -50,7 +50,7 @@ Configuración del backend (`backend/.env`):
 NODE_ENV=development
 PORT=3000
 CORS_ORIGIN=http://localhost:5173
-DATABASE_URL=postgresql://lily_app:LilyDb2026%21ChangeMe@localhost:5432/lily?schema=public
+DATABASE_URL=mysql://lily_app:LilyDb2026%21ChangeMe@127.0.0.1:3306/lily_mysql
 JWT_SECRET=reemplazar-por-un-secreto-seguro-de-al-menos-32-caracteres
 ADMIN_USERNAME=superadmin
 ADMIN_PASSWORD=1234
@@ -62,41 +62,31 @@ Configuración del frontend (`frontend/.env`):
 VITE_API_URL=http://localhost:3000/api/v1
 ```
 
-No se deben subir los archivos `.env` al repositorio. Antes de publicar la aplicación, cambia `JWT_SECRET`, la contraseña de PostgreSQL y la contraseña administrativa.
+No se deben subir los archivos `.env` al repositorio. Antes de publicar la aplicación, cambia `JWT_SECRET`, la contraseña de MySQL y la contraseña administrativa.
 
-## 3. Preparar PostgreSQL
+## 3. Preparar MySQL
 
-### Instalación automática en Windows
-
-Después de instalar PostgreSQL, abre PowerShell en la raíz del proyecto y ejecuta:
+Inicia MySQL desde el panel de XAMPP. Luego ejecuta desde la raíz:
 
 ```powershell
-./database/setup-postgres.ps1
+./database/setup-mysql.ps1
 ```
 
-El script solicita la contraseña del superusuario `postgres`, crea el usuario `lily_app` y la base `lily`, aplica las migraciones de Prisma y ejecuta el seed inicial.
+El script crea una base separada `lily_mysql` y el usuario local `lily_app`, aplica las migraciones y ejecuta el seed. No borra ni modifica PostgreSQL. Si root tiene contraseña, usa `-AskPassword`.
 
-Si PostgreSQL está instalado en otra versión o ubicación:
-
-```powershell
-./database/setup-postgres.ps1 -PostgresBin "C:\Program Files\PostgreSQL\18\bin"
-```
-
-### Instalación manual
-
-Ejecuta `database/create-database.sql` conectado como el superusuario `postgres`. Después, desde la raíz del proyecto, ejecuta:
-
-```bash
-npm run db:generate -w backend
-npm run db:deploy -w backend
-npm run db:seed -w backend
-```
-
-Para realizar los tres pasos juntos:
+Para una base ya creada y configurada en `backend/.env`:
 
 ```bash
 npm run db:setup -w backend
 ```
+
+MySQL debe estar activo cada vez que ejecutes `npm run dev`.
+
+### Historial anterior y datos
+
+El esquema y las migraciones anteriores se conservan en `backend/prisma/schema.postgresql.prisma` y `backend/prisma/migrations-postgresql`. Son un archivo histórico y no se ejecutan contra MySQL. La migración MySQL crea una base nueva; no convierte automáticamente bases PostgreSQL existentes. Nunca ejecutes `migrate reset` para cambiar de motor.
+
+La configuración y los datos locales anteriores se respaldaron en `.local-migration/` (ignorado por Git). Esa carpeta contiene secretos y no debe subirse ni compartirse. Los adjuntos siguen en `backend/uploads`.
 
 ## 4. Iniciar la aplicación
 
@@ -177,7 +167,7 @@ Lily/
 │       └── styles/       # Estilos de la aplicación
 ├── backend/
 │   ├── prisma/
-│   │   ├── migrations/   # Migraciones PostgreSQL
+│   │   ├── migrations/   # Migraciones MySQL
 │   │   ├── schema.prisma # Modelos de datos
 │   │   └── seed.mjs      # Datos iniciales
 │   └── src/
@@ -185,7 +175,7 @@ Lily/
 │       ├── middleware/   # Autenticación y errores
 │       ├── modules/      # Clientes, movimientos, envíos y dashboard
 │       └── routes/       # Enrutador de la API
-├── database/             # Preparación de PostgreSQL
+├── database/             # Preparación de MySQL
 ├── package.json          # Scripts y workspaces
 └── README.md
 ```
@@ -198,4 +188,39 @@ npm test
 npm run build
 ```
 
-Los datos de PostgreSQL, documentos adjuntos, comprobantes, archivos `.env`, `node_modules` y carpetas `dist` no deben subirse al repositorio.
+Los datos de MySQL, documentos adjuntos, comprobantes, archivos `.env`, `node_modules` y carpetas `dist` no deben subirse al repositorio.
+
+## Hostinger: configuración MySQL
+
+Crea una base y un usuario desde hPanel, usando nombres cortos, por ejemplo `lily` y `lilyapp`. Hostinger añade su prefijo; copia los nombres completos y el host que indique el panel. No ejecutes el SQL de creación local en el hosting.
+
+Configura como variables privadas del backend:
+
+```env
+NODE_ENV=production
+DATABASE_URL=mysql://USUARIO_COMPLETO:CONTRASENA_CODIFICADA@HOST_MYSQL:3306/BASE_COMPLETA
+JWT_SECRET=GENERAR_UN_SECRETO_NUEVO_DE_AL_MENOS_32_CARACTERES
+CORS_ORIGIN=https://mymultiservicesllc.com
+ADMIN_USERNAME=superadmin
+ADMIN_PASSWORD=ESTABLECER_UNA_CONTRASENA_SEGURA
+```
+
+Codifica los caracteres especiales del usuario/contraseña con `encodeURIComponent`. Nunca pongas `DATABASE_URL` ni secretos en variables `VITE_`. Conserva el puerto que Hostinger asigne. Configura `VITE_API_URL` con la URL HTTPS pública real de la API antes de compilar el frontend.
+
+Genera Prisma antes de compilar (`npm run db:generate -w backend`), aplica `npm run db:deploy -w backend` y ejecuta el seed solo para la creación inicial: el seed actualiza la contraseña del administrador y las categorías. Ejecuta el backend con `npm run start -w backend`. El despliegue también debe configurar la publicación del frontend, las rutas de React, HTTPS y almacenamiento persistente para `backend/uploads`; cambiar el motor de datos no publica automáticamente la aplicación.
+
+### Despliegue unificado en Hostinger
+
+- Directorio raíz: `./`
+- Node.js: `22.x`
+- Instalar dependencias de desarrollo durante la compilación: `npm ci --include=dev`
+- Compilar: `npm run build`
+- Arrancar: `npm start`
+- Si el panel pide un archivo de entrada: `backend/scripts/start-production.mjs`
+- La salida del frontend es `frontend/dist`; Express sirve esa carpeta y las rutas de React en producción.
+- `VITE_API_URL=https://mymultiservicesllc.com/api/v1`
+- Para Node.js dentro de Hostinger, el host MySQL es `127.0.0.1:3306`.
+
+El arranque de producción aplica `prisma migrate deploy` y el seed en modo `--initial-only`: crea usuarios y categorías ausentes, sin actualizar los existentes. Si falta la conexión, el secreto JWT o la contraseña inicial, el arranque falla con un mensaje de configuración. No uses `backend/dist/server.js` como entrada en Hostinger: omitiría la preparación inicial de la base. Mantén disponibles Prisma CLI y las carpetas `backend/prisma` y `frontend/dist` en el entorno de ejecución.
+
+Guía de conexión del proveedor: https://www.hostinger.com/support/connecting-a-hostinger-mysql-database-to-a-node-js-application/

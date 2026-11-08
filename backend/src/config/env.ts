@@ -10,7 +10,7 @@ const environmentSchema = z.object({
   CORS_ORIGIN: z.string().default('http://localhost:5173'),
   DATABASE_URL: z
     .string()
-    .default('postgresql://lily_app:LilyDb2026%21ChangeMe@localhost:5432/lily?schema=public'),
+    .default('mysql://lily_app:LilyDb2026%21ChangeMe@127.0.0.1:3306/lily_mysql'),
   JWT_SECRET: z.string().min(32).default('development-only-secret-change-before-production'),
   TEMP_SUPERADMIN_USERNAME: z.string().optional(),
   TEMP_SUPERADMIN_PASSWORD: z.string().min(4).optional(),

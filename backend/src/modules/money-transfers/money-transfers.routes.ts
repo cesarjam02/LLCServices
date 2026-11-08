@@ -62,9 +62,9 @@ moneyTransfersRouter.get('/', async (request, response) => {
   const clientId = String(request.query.clientId ?? '').trim();
   const where = {
     date: { gte: start, lt: end },
-    ...(company ? { company: { contains: company, mode: 'insensitive' as const } } : {}),
-    ...(bank ? { bank: { contains: bank, mode: 'insensitive' as const } } : {}),
-    ...(currency ? { currency: { equals: currency, mode: 'insensitive' as const } } : {}),
+    ...(company ? { company: { contains: company } } : {}),
+    ...(bank ? { bank: { contains: bank } } : {}),
+    ...(currency ? { currency: { equals: currency } } : {}),
     ...(clientId ? { clientId } : {}),
   };
   const transfers = await prisma.moneyTransfer.findMany({

@@ -17,16 +17,20 @@ const categories = [
 ];
 
 const username = process.env.ADMIN_USERNAME ?? 'superadmin';
+const initialOnly = process.argv.includes('--initial-only');
+if (process.env.NODE_ENV === 'production' && !process.env.ADMIN_PASSWORD) {
+  throw new Error('Configura ADMIN_PASSWORD antes de inicializar producción.');
+}
 const password = process.env.ADMIN_PASSWORD ?? '1234';
 const passwordHash = await hash(password, 12);
 
 await prisma.user.upsert({
   where: { username },
-  update: { name: 'Superadministrador', passwordHash, role: 'ADMIN', active: true },
+  update: initialOnly ? {} : { name: 'Superadministrador', passwordHash, role: 'ADMIN', active: true },
   create: { username, name: 'Superadministrador', passwordHash, role: 'ADMIN' },
 });
 
-await prisma.category.updateMany({
+if (!initialOnly) await prisma.category.updateMany({
   where: { name: { notIn: categories.map(([name]) => name) } },
   data: { active: false },
 });
@@ -34,7 +38,7 @@ await prisma.category.updateMany({
 for (const [name, type] of categories) {
   await prisma.category.upsert({
     where: { name },
-    update: { type, active: true },
+    update: initialOnly ? {} : { type, active: true },
     create: { name, type, active: true },
   });
 }

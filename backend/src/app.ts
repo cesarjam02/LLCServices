@@ -4,6 +4,8 @@ import cookieParser from 'cookie-parser';
 import express from 'express';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { env } from './config/env.js';
 import { errorHandler } from './middleware/errorHandler.js';
 import { notFound } from './middleware/notFound.js';
@@ -14,6 +16,7 @@ export function createApp() {
   const allowedOrigins = env.CORS_ORIGIN.split(',').map((origin) => origin.trim());
 
   app.disable('x-powered-by');
+  if (env.NODE_ENV === 'production') app.set('trust proxy', 1);
   app.use(helmet());
   app.use(
     cors({
@@ -36,10 +39,19 @@ export function createApp() {
   app.use(express.urlencoded({ extended: true }));
   if (env.NODE_ENV !== 'test') app.use(morgan('dev'));
 
-  app.get('/', (_request, response) => {
-    response.json({ name: 'Lily API', version: '1.0.0', docs: '/api/v1/health' });
-  });
   app.use('/api/v1', apiRouter);
+  if (env.NODE_ENV === 'production') {
+    const frontendDirectory = fileURLToPath(new URL('../../frontend/dist/', import.meta.url));
+    app.use(express.static(frontendDirectory));
+    app.get('/{*path}', (request, response, next) => {
+      if (request.path === '/api' || request.path.startsWith('/api/')) return next();
+      response.sendFile(join(frontendDirectory, 'index.html'));
+    });
+  } else {
+    app.get('/', (_request, response) => {
+      response.json({ name: 'Lily API', version: '1.0.0', docs: '/api/v1/health' });
+    });
+  }
   app.use(notFound);
   app.use(errorHandler);
 
